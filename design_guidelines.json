@@ -1,0 +1,122 @@
+{
+  "theme": "LIGHT",
+  "archetype": "Soft Utility + Organic (Archetype 1) Blend",
+  "design_philosophy": "Clean, clinical authority combined with approachability. Uses a premium clinical blue and white palette. Removes all unnecessary gradients and soft shadows in favor of crisp, 1px borders and optical clarity.",
+  "typography": {
+    "heading_font": "Work Sans",
+    "body_font": "IBM Plex Sans",
+    "scales": {
+      "h1": "text-4xl sm:text-5xl tracking-tight leading-none font-medium",
+      "h2": "text-2xl sm:text-3xl tracking-tight leading-none font-medium",
+      "h3": "text-xl sm:text-2xl tracking-tight font-medium",
+      "h4": "text-lg font-medium",
+      "body": "text-base leading-relaxed",
+      "small_label": "text-xs uppercase tracking-[0.2em] font-semibold"
+    }
+  },
+  "colors": {
+    "background": {
+      "default": "#F4F7F9",
+      "surface": "#FFFFFF",
+      "sidebar": "#0F2C59"
+    },
+    "brand": {
+      "primary": "#0F2C59",
+      "secondary": "#2563EB",
+      "accent": "#E0F2FE",
+      "accent_text": "#0284C7"
+    },
+    "functional": {
+      "success": "#D1FAE5",
+      "success_text": "#065F46",
+      "warning": "#FEF3C7",
+      "warning_text": "#92400E",
+      "error": "#FFE4E6",
+      "error_text": "#9F1239",
+      "border": "#E2E8F0"
+    },
+    "text": {
+      "primary": "#0F172A",
+      "secondary": "#475569",
+      "tertiary": "#94A3B8",
+      "on_brand": "#FFFFFF"
+    }
+  },
+  "layout": {
+    "strategy": "The 'Control Room' Grid",
+    "base_grid": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4",
+    "spacing": {
+      "container_padding": "p-6 sm:p-8",
+      "section_gap": "gap-8 sm:gap-12",
+      "widget_gap": "gap-4 sm:gap-6"
+    }
+  },
+  "surface_strategies": {
+    "cards": {
+      "background": "bg-white",
+      "border": "border border-slate-200",
+      "shadow": "shadow-sm",
+      "radius": "rounded-lg",
+      "hover": "hover:border-blue-300 hover:shadow-md transition-all duration-200"
+    },
+    "sidebar": {
+      "background": "bg-[#0F2C59]",
+      "text": "text-white/80",
+      "active_text": "text-white font-medium",
+      "active_background": "bg-white/10"
+    },
+    "header": {
+      "background": "bg-white/80 backdrop-blur-xl",
+      "border": "border-b border-slate-200"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-[#2563EB] text-white hover:bg-[#1D4ED8] hover:text-white transition-colors px-6 py-2.5 rounded-md font-medium",
+      "secondary": "bg-white text-[#0F2C59] border border-[#0F2C59]/20 hover:bg-[#F4F7F9] transition-colors px-6 py-2.5 rounded-md font-medium"
+    },
+    "inputs": {
+      "default": "bg-white border border-slate-200 rounded-md px-4 py-2 focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB] transition-all",
+      "labels": "text-sm font-medium text-slate-700 mb-1.5 block"
+    },
+    "stats_cards": {
+      "structure": "flex flex-col gap-2 p-6 bg-white border border-slate-200 rounded-lg",
+      "value": "text-3xl font-semibold text-[#0F172A]",
+      "label": "text-sm font-medium text-slate-500",
+      "trend_up": "text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full w-fit",
+      "trend_down": "text-xs font-medium text-rose-600 bg-rose-50 px-2 py-1 rounded-full w-fit"
+    }
+  },
+  "icons_library": "lucide-react",
+  "media": {
+    "hero_background": {
+      "url": "https://images.unsplash.com/photo-1617246610501-d11b4829436b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTV8MHwxfHNlYXJjaHwxfHxtZWRpY2FsJTIwY29sbGVnZSUyMGNhbXB1c3xlbnwwfHx8fDE3Nzg0OTk4NDN8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Campus aerial view - Use with a heavy deep blue overlay (bg-[#0F2C59]/80) for the login/landing page background."
+    },
+    "clinical_training": {
+      "url": "https://images.pexels.com/photos/35645530/pexels-photo-35645530.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Nursing students conducting a medical procedure. Perfect for the Admissions or Landing page feature section."
+    },
+    "student_patient_interaction": {
+      "url": "https://images.pexels.com/photos/35645527/pexels-photo-35645527.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Healthcare professionals conducting a blood pressure check. Use for Academic Management or Course details visual."
+    },
+    "auth_illustration_or_avatar": {
+      "url": "https://images.unsplash.com/photo-1623854766464-c3645e6841d8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTF8MHwxfHNlYXJjaHwxfHxkb2N0b3IlMjBudXJzZSUyMHBvcnRyYWl0fGVufDB8fHx8MTc3ODQ5OTg0M3ww&ixlib=rb-4.1.0&q=85",
+      "description": "Portrait of a nurse/doctor. Can be used for Faculty profile placeholders or ID card examples."
+    }
+  },
+  "accessibility_and_testing": {
+    "data_testid_rule": "ALL interactive elements MUST have data-testid attributes (e.g., data-testid='login-submit-button').",
+    "contrast": "Ensure all text meets APCA/WCAG AA standards, particularly white text on the primary blue background."
+  },
+  "instructions_to_main_agent": [
+    "Strictly avoid the Inter font. Use Work Sans for headings and IBM Plex Sans for body text.",
+    "Do NOT use any purple colors or gradients.",
+    "Implement a responsive sidebar layout for the dashboard. The sidebar should have a dark background (#0F2C59) with white text for high contrast and authority.",
+    "Use standard Shadcn components but override their default rounded/shadow styles to match the 'cards' specs in this JSON (sharp, 1px borders, minimal shadows).",
+    "Build a role-based navigation structure in the sidebar that visibly adapts if the user is Admin, Faculty, Student, etc.",
+    "Use the 'Control Room' grid layout for the Admin dashboard to display dense statistics, charts, and data efficiently.",
+    "Use Recharts for the analytics (enrollment trends, fee collection, attendance). Style the charts using the 'brand' and 'functional' colors provided."
+  ]
+}
