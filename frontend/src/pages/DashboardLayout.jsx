@@ -3,8 +3,10 @@ import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import {
   LayoutDashboard, GraduationCap, Users, BookOpen, Wallet, CalendarCheck,
-  User, LogOut, HeartPulse, Menu, X, Bell
+  User, LogOut, Menu, X, Bell
 } from "lucide-react";
+
+const UDAAN_LOGO = "https://customer-assets.emergentagent.com/job_nursing-hub-24/artifacts/tlidreau_UDAAN%20INSTITUTE%20%284%29.png";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
@@ -24,12 +26,12 @@ function Sidebar({ user, onClose }) {
     <aside className="h-full w-64 bg-[#0F2C59] text-white/85 flex flex-col" data-testid="sidebar">
       <div className="px-5 py-5 flex items-center justify-between border-b border-white/10">
         <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-md bg-white/10 backdrop-blur flex items-center justify-center">
-            <HeartPulse className="h-4.5 w-4.5 text-white" />
+          <div className="h-11 w-11 rounded-md bg-white p-1 flex items-center justify-center shadow-sm">
+            <img src={UDAAN_LOGO} alt="Udaan Institute" className="h-full w-full object-contain" />
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-white/60 font-display">Nursing</div>
-            <div className="font-display text-sm font-medium text-white">College ERP</div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-white/60 font-display">Udaan Institute</div>
+            <div className="font-display text-sm font-medium text-white">Nursing College ERP</div>
           </div>
         </div>
         {onClose && (

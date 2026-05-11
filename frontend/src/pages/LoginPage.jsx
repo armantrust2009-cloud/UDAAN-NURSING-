@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { HeartPulse, ShieldCheck, Stethoscope, Sparkles } from "lucide-react";
+import { ShieldCheck, Stethoscope, Sparkles } from "lucide-react";
+
+const UDAAN_LOGO = "https://customer-assets.emergentagent.com/job_nursing-hub-24/artifacts/tlidreau_UDAAN%20INSTITUTE%20%284%29.png";
 import { toast } from "sonner";
 
 export default function LoginPage() {
@@ -60,12 +62,12 @@ export default function LoginPage() {
         <div className="absolute inset-0 bg-[#0F2C59]/80" />
         <div className="relative z-10 h-full flex flex-col justify-between p-8 lg:p-14 text-white">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-md bg-white/15 backdrop-blur flex items-center justify-center">
-              <HeartPulse className="h-5 w-5 text-white" />
+            <div className="h-14 w-14 rounded-md bg-white p-1.5 flex items-center justify-center shadow-sm">
+              <img src={UDAAN_LOGO} alt="Udaan Institute" className="h-full w-full object-contain" />
             </div>
             <div>
-              <div className="text-xs uppercase tracking-[0.2em] text-white/70 font-display">Nursing College</div>
-              <div className="font-display text-lg font-medium">Management ERP</div>
+              <div className="text-xs uppercase tracking-[0.2em] text-white/70 font-display">Udaan Institute</div>
+              <div className="font-display text-lg font-medium">Nursing College ERP</div>
             </div>
           </div>
 
@@ -92,7 +94,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="text-xs text-white/60 tracking-wide">© 2026 Nursing College ERP</div>
+          <div className="text-xs text-white/60 tracking-wide">© 2026 Udaan Institute · Nursing College ERP</div>
         </div>
       </div>
 
