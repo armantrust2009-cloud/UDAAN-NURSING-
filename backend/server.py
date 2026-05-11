@@ -190,6 +190,24 @@ class AttendanceIn(BaseModel):
     note: Optional[str] = ""
 
 
+class BookIn(BaseModel):
+    title: str
+    author: str
+    isbn: Optional[str] = ""
+    category: Optional[str] = "Nursing"
+    publisher: Optional[str] = ""
+    edition: Optional[str] = ""
+    total_copies: int = 1
+    cover_url: Optional[str] = ""
+    description: Optional[str] = ""
+
+
+class IssueIn(BaseModel):
+    student_id: str
+    book_id: str
+    due_date: str  # YYYY-MM-DD
+
+
 # ===================== Utilities =====================
 def new_id() -> str:
     return str(uuid.uuid4())
@@ -574,6 +592,159 @@ async def attendance_summary(student_id: str, user: dict = Depends(get_current_u
     return {"total": total, "present": present, "absent": absent, "leave": leave, "percentage": pct}
 
 
+# ===================== Library =====================
+FINE_PER_DAY = 2.0
+
+
+async def _book_available_count(book_id: str, total_copies: int) -> int:
+    issued = await db.book_issues.count_documents({"book_id": book_id, "status": "issued"})
+    return max(0, total_copies - issued)
+
+
+@api_router.get("/library/books")
+async def list_books(q: Optional[str] = None, user: dict = Depends(get_current_user)):
+    query = {}
+    if q:
+        query["$or"] = [
+            {"title": {"$regex": q, "$options": "i"}},
+            {"author": {"$regex": q, "$options": "i"}},
+            {"isbn": {"$regex": q, "$options": "i"}},
+            {"category": {"$regex": q, "$options": "i"}},
+        ]
+    rows = await db.books.find(query, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    for r in rows:
+        r["available_copies"] = await _book_available_count(r["id"], r.get("total_copies", 0))
+    return rows
+
+
+@api_router.post("/library/books")
+async def create_book(payload: BookIn, user: dict = Depends(require_roles("admin", "principal", "faculty"))):
+    doc = payload.model_dump()
+    doc["id"] = new_id()
+    doc["created_at"] = now_utc().isoformat()
+    await db.books.insert_one(doc)
+    doc.pop("_id", None)
+    doc["available_copies"] = doc["total_copies"]
+    return doc
+
+
+@api_router.put("/library/books/{bid}")
+async def update_book(bid: str, payload: BookIn, user: dict = Depends(require_roles("admin", "principal", "faculty"))):
+    res = await db.books.update_one({"id": bid}, {"$set": payload.model_dump()})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Not found")
+    book = await db.books.find_one({"id": bid}, {"_id": 0})
+    book["available_copies"] = await _book_available_count(bid, book.get("total_copies", 0))
+    return book
+
+
+@api_router.delete("/library/books/{bid}")
+async def delete_book(bid: str, user: dict = Depends(require_roles("admin"))):
+    issued = await db.book_issues.count_documents({"book_id": bid, "status": "issued"})
+    if issued > 0:
+        raise HTTPException(400, f"Cannot delete — {issued} copy(s) currently issued")
+    res = await db.books.delete_one({"id": bid})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Not found")
+    return {"ok": True}
+
+
+@api_router.get("/library/issues")
+async def list_issues(status_: Optional[str] = None, student_id: Optional[str] = None, user: dict = Depends(get_current_user)):
+    q = {}
+    if status_:
+        q["status"] = status_
+    if student_id:
+        q["student_id"] = student_id
+    rows = await db.book_issues.find(q, {"_id": 0}).sort("issue_date", -1).to_list(2000)
+
+    # enrich + compute live fine
+    book_ids = list({r["book_id"] for r in rows if r.get("book_id")})
+    student_ids = list({r["student_id"] for r in rows if r.get("student_id")})
+    books = await db.books.find({"id": {"$in": book_ids}}, {"_id": 0, "id": 1, "title": 1, "author": 1}).to_list(2000)
+    students = await db.students.find({"id": {"$in": student_ids}}, {"_id": 0, "id": 1, "name": 1, "admission_no": 1}).to_list(2000)
+    bmap = {b["id"]: b for b in books}
+    smap = {s["id"]: s for s in students}
+    today = datetime.now(timezone.utc).date()
+    for r in rows:
+        b = bmap.get(r.get("book_id"))
+        s = smap.get(r.get("student_id"))
+        if b:
+            r["book_title"] = b.get("title", "")
+            r["book_author"] = b.get("author", "")
+        if s:
+            r["student_name"] = s.get("name", "")
+            r["admission_no"] = s.get("admission_no", "")
+        if r.get("status") == "issued" and r.get("due_date"):
+            try:
+                due = datetime.fromisoformat(r["due_date"]).date()
+                overdue_days = (today - due).days
+                r["overdue_days"] = max(0, overdue_days)
+                r["current_fine"] = round(max(0, overdue_days) * FINE_PER_DAY, 2)
+            except Exception:
+                r["overdue_days"] = 0
+                r["current_fine"] = 0.0
+    return rows
+
+
+@api_router.post("/library/issues")
+async def issue_book(payload: IssueIn, user: dict = Depends(require_roles("admin", "principal", "faculty"))):
+    book = await db.books.find_one({"id": payload.book_id}, {"_id": 0})
+    if not book:
+        raise HTTPException(404, "Book not found")
+    available = await _book_available_count(payload.book_id, book.get("total_copies", 0))
+    if available <= 0:
+        raise HTTPException(400, "No copies available")
+    student = await db.students.find_one({"id": payload.student_id}, {"_id": 0})
+    if not student:
+        raise HTTPException(404, "Student not found")
+    doc = {
+        "id": new_id(),
+        "student_id": payload.student_id,
+        "book_id": payload.book_id,
+        "issue_date": now_utc().date().isoformat(),
+        "due_date": payload.due_date,
+        "return_date": None,
+        "fine": 0.0,
+        "status": "issued",
+        "created_at": now_utc().isoformat(),
+    }
+    await db.book_issues.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.post("/library/issues/{iid}/return")
+async def return_book(iid: str, user: dict = Depends(require_roles("admin", "principal", "faculty"))):
+    issue = await db.book_issues.find_one({"id": iid}, {"_id": 0})
+    if not issue:
+        raise HTTPException(404, "Not found")
+    if issue.get("status") == "returned":
+        raise HTTPException(400, "Already returned")
+    today = datetime.now(timezone.utc).date()
+    fine = 0.0
+    try:
+        due = datetime.fromisoformat(issue["due_date"]).date()
+        overdue = (today - due).days
+        if overdue > 0:
+            fine = round(overdue * FINE_PER_DAY, 2)
+    except Exception:
+        pass
+    await db.book_issues.update_one(
+        {"id": iid},
+        {"$set": {"status": "returned", "return_date": today.isoformat(), "fine": fine}},
+    )
+    return await db.book_issues.find_one({"id": iid}, {"_id": 0})
+
+
+@api_router.delete("/library/issues/{iid}")
+async def delete_issue(iid: str, user: dict = Depends(require_roles("admin"))):
+    res = await db.book_issues.delete_one({"id": iid})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Not found")
+    return {"ok": True}
+
+
 # ===================== Health =====================
 @api_router.get("/")
 async def root():
@@ -629,6 +800,21 @@ async def on_startup():
             c["id"] = new_id()
             c["created_at"] = now_utc().isoformat()
             await db.courses.insert_one(c)
+
+    # Seed library books if empty
+    if await db.books.count_documents({}) == 0:
+        seed_books = [
+            {"title": "Brunner & Suddarth's Textbook of Medical-Surgical Nursing", "author": "Janice L. Hinkle", "isbn": "978-1496347992", "category": "Medical-Surgical", "publisher": "Wolters Kluwer", "edition": "14th", "total_copies": 5},
+            {"title": "Fundamentals of Nursing", "author": "Patricia A. Potter", "isbn": "978-0323677721", "category": "Fundamentals", "publisher": "Elsevier", "edition": "10th", "total_copies": 8},
+            {"title": "Maternal & Child Health Nursing", "author": "Adele Pillitteri", "isbn": "978-1496348135", "category": "Maternal Health", "publisher": "Wolters Kluwer", "edition": "8th", "total_copies": 4},
+            {"title": "Psychiatric Mental Health Nursing", "author": "Mary C. Townsend", "isbn": "978-0803669130", "category": "Mental Health", "publisher": "F.A. Davis", "edition": "9th", "total_copies": 3},
+            {"title": "Lehne's Pharmacology for Nursing Care", "author": "Jacqueline Burchum", "isbn": "978-0323512275", "category": "Pharmacology", "publisher": "Elsevier", "edition": "10th", "total_copies": 6},
+            {"title": "Anatomy & Physiology for Nurses", "author": "Roger Watson", "isbn": "978-0702083280", "category": "Anatomy", "publisher": "Elsevier", "edition": "14th", "total_copies": 5},
+        ]
+        for b in seed_books:
+            b["id"] = new_id()
+            b["created_at"] = now_utc().isoformat()
+            await db.books.insert_one(b)
 
 
 @app.on_event("shutdown")

@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import {
   LayoutDashboard, GraduationCap, Users, BookOpen, Wallet, CalendarCheck,
-  User, LogOut, Menu, X, Bell
+  Library, User, LogOut, Menu, X, Bell
 } from "lucide-react";
 
 const UDAAN_LOGO = "https://customer-assets.emergentagent.com/job_nursing-hub-24/artifacts/tlidreau_UDAAN%20INSTITUTE%20%284%29.png";
@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { to: "/courses", label: "Courses", icon: BookOpen, roles: ["admin", "principal", "faculty", "student"] },
   { to: "/fees", label: "Fees", icon: Wallet, roles: ["admin", "principal", "student", "parent"] },
   { to: "/attendance", label: "Attendance", icon: CalendarCheck, roles: ["admin", "principal", "faculty", "student", "parent"] },
+  { to: "/library", label: "Library", icon: Library, roles: ["admin", "principal", "faculty", "student"] },
   { to: "/profile", label: "Profile", icon: User, roles: ["admin", "principal", "faculty", "student", "parent"] },
 ];
 
