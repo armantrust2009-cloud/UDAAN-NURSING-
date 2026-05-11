@@ -10,13 +10,15 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger
 } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Pencil, Trash2, GraduationCap } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, GraduationCap, IdCard, Upload, X } from "lucide-react";
 import { toast } from "sonner";
+import StudentIDCardModal from "@/components/StudentIDCardModal";
 
 const empty = {
   name: "", email: "", phone: "", dob: "", gender: "Female",
   address: "", parent_name: "", parent_phone: "",
-  course_id: "", batch_year: 2025, scholarship: 0, status: "active"
+  course_id: "", batch_year: 2025, scholarship: 0, status: "active",
+  photo: "", blood_group: "", valid_until: ""
 };
 
 export default function StudentsPage() {
@@ -31,6 +33,8 @@ export default function StudentsPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
+  const [idCardOpen, setIdCardOpen] = useState(false);
+  const [idCardStudent, setIdCardStudent] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -62,8 +66,27 @@ export default function StudentsPage() {
       parent_phone: row.parent_phone || "", course_id: row.course_id || "",
       batch_year: row.batch_year || 2025, scholarship: row.scholarship || 0,
       status: row.status || "active", admission_no: row.admission_no || "",
+      photo: row.photo || "", blood_group: row.blood_group || "",
+      valid_until: row.valid_until || "",
     });
     setOpen(true);
+  };
+
+  const openIdCard = (row) => {
+    setIdCardStudent(row);
+    setIdCardOpen(true);
+  };
+
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Photo must be smaller than 2 MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setForm((f) => ({ ...f, photo: reader.result }));
+    reader.readAsDataURL(file);
   };
 
   const save = async (e) => {
@@ -117,6 +140,32 @@ export default function StudentsPage() {
                 <DialogTitle className="font-display">{editing ? "Edit Student" : "New Admission"}</DialogTitle>
               </DialogHeader>
               <form onSubmit={save} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Photo upload */}
+                <div className="md:col-span-2 flex items-center gap-4 p-3 bg-slate-50 border border-slate-200 rounded-md">
+                  <div className="h-20 w-20 rounded-md overflow-hidden bg-white border border-slate-200 flex items-center justify-center flex-shrink-0">
+                    {form.photo ? (
+                      <img src={form.photo} alt="Preview" className="h-full w-full object-cover" />
+                    ) : (
+                      <GraduationCap className="h-8 w-8 text-slate-300" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <Label className="text-sm font-medium text-slate-700">Student Photo</Label>
+                    <p className="text-xs text-slate-500 mb-2">JPG/PNG · square preferred · &lt; 2 MB</p>
+                    <div className="flex items-center gap-2">
+                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer" data-testid="student-photo-upload">
+                        <Upload className="h-3.5 w-3.5" />
+                        {form.photo ? "Change photo" : "Upload photo"}
+                        <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+                      </label>
+                      {form.photo && (
+                        <button type="button" onClick={() => setForm({ ...form, photo: "" })} className="inline-flex items-center gap-1 px-2 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded-md" data-testid="student-photo-remove">
+                          <X className="h-3.5 w-3.5" /> Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
                 <div><Label>Full Name *</Label><Input data-testid="student-name-input" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
                 <div><Label>Email *</Label><Input data-testid="student-email-input" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
                 <div><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
@@ -128,6 +177,14 @@ export default function StudentsPage() {
                   </select>
                 </div>
                 <div>
+                  <Label>Blood Group</Label>
+                  <select value={form.blood_group} onChange={(e) => setForm({ ...form, blood_group: e.target.value })} className="w-full bg-white border border-slate-200 rounded-md px-3 py-2 text-sm">
+                    <option value="">—</option>
+                    <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
+                    <option>AB+</option><option>AB-</option><option>O+</option><option>O-</option>
+                  </select>
+                </div>
+                <div>
                   <Label>Course</Label>
                   <select data-testid="student-course-select" value={form.course_id} onChange={(e) => setForm({ ...form, course_id: e.target.value })} className="w-full bg-white border border-slate-200 rounded-md px-3 py-2 text-sm">
                     <option value="">-- Select course --</option>
@@ -135,6 +192,7 @@ export default function StudentsPage() {
                   </select>
                 </div>
                 <div><Label>Batch Year</Label><Input type="number" value={form.batch_year} onChange={(e) => setForm({ ...form, batch_year: e.target.value })} /></div>
+                <div><Label>Valid Until (ID card)</Label><Input type="date" value={form.valid_until} onChange={(e) => setForm({ ...form, valid_until: e.target.value })} /></div>
                 <div><Label>Scholarship (₹)</Label><Input type="number" value={form.scholarship} onChange={(e) => setForm({ ...form, scholarship: e.target.value })} /></div>
                 <div><Label>Parent Name</Label><Input value={form.parent_name} onChange={(e) => setForm({ ...form, parent_name: e.target.value })} /></div>
                 <div><Label>Parent Phone</Label><Input value={form.parent_phone} onChange={(e) => setForm({ ...form, parent_phone: e.target.value })} /></div>
@@ -185,7 +243,14 @@ export default function StudentsPage() {
               ) : rows.map((r) => (
                 <TableRow key={r.id} className="border-slate-100" data-testid={`student-row-${r.id}`}>
                   <TableCell className="font-medium text-slate-900">{r.admission_no || "—"}</TableCell>
-                  <TableCell>{r.name}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-8 w-8 rounded-full overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0 flex items-center justify-center">
+                        {r.photo ? <img src={r.photo} alt="" className="h-full w-full object-cover" /> : <GraduationCap className="h-3.5 w-3.5 text-slate-400" />}
+                      </div>
+                      <span>{r.name}</span>
+                    </div>
+                  </TableCell>
                   <TableCell className="text-slate-600">{r.email}</TableCell>
                   <TableCell className="text-slate-600">{courseName(r.course_id)}</TableCell>
                   <TableCell>{r.batch_year || "—"}</TableCell>
@@ -196,6 +261,7 @@ export default function StudentsPage() {
                   </TableCell>
                   {canEdit && (
                     <TableCell className="text-right">
+                      <Button size="sm" variant="ghost" onClick={() => openIdCard(r)} className="text-blue-600 hover:text-blue-700" title="View ID Card" data-testid={`student-idcard-${r.id}`}><IdCard className="h-3.5 w-3.5" /></Button>
                       <Button size="sm" variant="ghost" onClick={() => openEdit(r)} data-testid={`student-edit-${r.id}`}><Pencil className="h-3.5 w-3.5" /></Button>
                       {canDelete && <Button size="sm" variant="ghost" onClick={() => remove(r.id)} className="text-rose-600 hover:text-rose-700" data-testid={`student-delete-${r.id}`}><Trash2 className="h-3.5 w-3.5" /></Button>}
                     </TableCell>
@@ -206,6 +272,13 @@ export default function StudentsPage() {
           </Table>
         </div>
       </Card>
+
+      <StudentIDCardModal
+        open={idCardOpen}
+        onOpenChange={setIdCardOpen}
+        student={idCardStudent}
+        course={idCardStudent ? courseName(idCardStudent.course_id) : ""}
+      />
     </div>
   );
 }

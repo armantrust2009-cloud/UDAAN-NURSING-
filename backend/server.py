@@ -143,6 +143,9 @@ class StudentIn(BaseModel):
     admission_no: Optional[str] = ""
     scholarship: Optional[float] = 0.0
     status: Optional[str] = "active"
+    photo: Optional[str] = ""  # base64 data URL
+    blood_group: Optional[str] = ""
+    valid_until: Optional[str] = ""
 
 
 class FacultyIn(BaseModel):
