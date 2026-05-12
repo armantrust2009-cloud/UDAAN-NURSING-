@@ -381,6 +381,17 @@ async def dashboard_stats(user: dict = Depends(get_current_user)):
     ).to_list(10)
     attendance_dist = [{"name": a["_id"], "value": a["count"]} for a in att_pipe]
 
+    # Inquiry pipeline + recent
+    inq_pipe = await db.inquiries.aggregate([{"$group": {"_id": "$status", "count": {"$sum": 1}}}]).to_list(20)
+    inq_by_status = {"new": 0, "contacted": 0, "visited": 0, "admitted": 0, "lost": 0}
+    inq_total = 0
+    for r in inq_pipe:
+        inq_by_status[r["_id"]] = r["count"]
+        inq_total += r["count"]
+    inq_open = inq_by_status["new"] + inq_by_status["contacted"] + inq_by_status["visited"]
+    conv_rate = round((inq_by_status["admitted"] / inq_total * 100), 1) if inq_total else 0
+    recent_inquiries = await db.inquiries.find({}, {"_id": 0}).sort("created_at", -1).to_list(5)
+
     return {
         "students_count": students_count,
         "faculty_count": faculty_count,
@@ -391,6 +402,13 @@ async def dashboard_stats(user: dict = Depends(get_current_user)):
         "enrollment": enrollment_data,
         "fee_chart": fee_chart,
         "attendance_dist": attendance_dist,
+        "inquiries": {
+            "total": inq_total,
+            "open": inq_open,
+            "conversion_rate": conv_rate,
+            "by_status": inq_by_status,
+            "recent": recent_inquiries,
+        },
     }
 
 
