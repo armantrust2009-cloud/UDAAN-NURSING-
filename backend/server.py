@@ -226,6 +226,31 @@ class InquiryStatusIn(BaseModel):
     notes: Optional[str] = ""
 
 
+class SubjectIn(BaseModel):
+    name: str
+    code: str
+    course_id: str
+    faculty_id: Optional[str] = ""
+    semester: int = 1
+    total_hours: int = 60
+    credits: int = 4
+    description: Optional[str] = ""
+
+
+class SyllabusUnitIn(BaseModel):
+    subject_id: str
+    unit_no: int = 1
+    title: str
+    topics: List[str] = Field(default_factory=list)
+    hours: int = 8
+    status: str = "planned"  # planned | in-progress | completed
+    notes: Optional[str] = ""
+
+
+class UnitStatusIn(BaseModel):
+    status: str  # planned | in-progress | completed
+
+
 # ===================== Utilities =====================
 def new_id() -> str:
     return str(uuid.uuid4())
@@ -912,6 +937,148 @@ async def delete_inquiry(iid: str, user: dict = Depends(require_roles("admin")))
     return {"ok": True}
 
 
+# ===================== Syllabus & Subjects =====================
+UNIT_STATUSES = {"planned", "in-progress", "completed"}
+
+
+def _unit_progress(units: list) -> dict:
+    total = len(units)
+    completed = sum(1 for u in units if u.get("status") == "completed")
+    in_progress = sum(1 for u in units if u.get("status") == "in-progress")
+    pct = round((completed / total * 100), 1) if total else 0
+    return {"total_units": total, "completed_units": completed, "in_progress_units": in_progress, "progress_pct": pct}
+
+
+async def _enrich_subjects(rows: list) -> list:
+    course_ids = list({r["course_id"] for r in rows if r.get("course_id")})
+    faculty_ids = list({r.get("faculty_id") for r in rows if r.get("faculty_id")})
+    subject_ids = [r["id"] for r in rows]
+
+    courses = await db.courses.find({"id": {"$in": course_ids}}, {"_id": 0, "id": 1, "name": 1, "code": 1}).to_list(500)
+    faculty = await db.faculty.find({"id": {"$in": faculty_ids}}, {"_id": 0, "id": 1, "name": 1, "designation": 1}).to_list(500)
+    cmap = {c["id"]: c for c in courses}
+    fmap = {f["id"]: f for f in faculty}
+
+    if subject_ids:
+        units_agg = await db.syllabus_units.aggregate([
+            {"$match": {"subject_id": {"$in": subject_ids}}},
+            {"$group": {"_id": "$subject_id", "units": {"$push": {"status": "$status"}}}},
+        ]).to_list(len(subject_ids))
+        umap = {u["_id"]: u["units"] for u in units_agg}
+    else:
+        umap = {}
+
+    for r in rows:
+        c = cmap.get(r.get("course_id"))
+        f = fmap.get(r.get("faculty_id"))
+        if c:
+            r["course_name"] = c["name"]
+            r["course_code"] = c["code"]
+        if f:
+            r["faculty_name"] = f["name"]
+            r["faculty_designation"] = f["designation"]
+        r.update(_unit_progress(umap.get(r["id"], [])))
+    return rows
+
+
+@api_router.get("/subjects")
+async def list_subjects(course_id: Optional[str] = None, faculty_id: Optional[str] = None, user: dict = Depends(get_current_user)):
+    q = {}
+    if course_id:
+        q["course_id"] = course_id
+    if faculty_id is not None:
+        q["faculty_id"] = faculty_id
+    rows = await db.subjects.find(q, {"_id": 0}).sort([("course_id", 1), ("semester", 1)]).to_list(2000)
+    return await _enrich_subjects(rows)
+
+
+@api_router.post("/subjects")
+async def create_subject(payload: SubjectIn, user: dict = Depends(require_roles("admin", "principal"))):
+    doc = payload.model_dump()
+    doc["id"] = new_id()
+    doc["created_at"] = now_utc().isoformat()
+    await db.subjects.insert_one(doc)
+    doc.pop("_id", None)
+    return (await _enrich_subjects([doc]))[0]
+
+
+@api_router.put("/subjects/{sid}")
+async def update_subject(sid: str, payload: SubjectIn, user: dict = Depends(require_roles("admin", "principal"))):
+    res = await db.subjects.update_one({"id": sid}, {"$set": payload.model_dump()})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Not found")
+    doc = await db.subjects.find_one({"id": sid}, {"_id": 0})
+    return (await _enrich_subjects([doc]))[0]
+
+
+@api_router.delete("/subjects/{sid}")
+async def delete_subject(sid: str, user: dict = Depends(require_roles("admin"))):
+    res = await db.subjects.delete_one({"id": sid})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Not found")
+    await db.syllabus_units.delete_many({"subject_id": sid})
+    return {"ok": True}
+
+
+@api_router.get("/subjects/{sid}/units")
+async def list_units(sid: str, user: dict = Depends(get_current_user)):
+    rows = await db.syllabus_units.find({"subject_id": sid}, {"_id": 0}).sort("unit_no", 1).to_list(500)
+    return rows
+
+
+@api_router.post("/subjects/{sid}/units")
+async def create_unit(sid: str, payload: SyllabusUnitIn, user: dict = Depends(require_roles("admin", "principal", "faculty"))):
+    if payload.status not in UNIT_STATUSES:
+        raise HTTPException(400, "Invalid status")
+    subject = await db.subjects.find_one({"id": sid}, {"_id": 0})
+    if not subject:
+        raise HTTPException(404, "Subject not found")
+    doc = payload.model_dump()
+    doc["subject_id"] = sid
+    doc["id"] = new_id()
+    doc["created_at"] = now_utc().isoformat()
+    doc["completed_at"] = now_utc().isoformat() if doc["status"] == "completed" else None
+    await db.syllabus_units.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.put("/units/{uid}")
+async def update_unit(uid: str, payload: SyllabusUnitIn, user: dict = Depends(require_roles("admin", "principal", "faculty"))):
+    if payload.status not in UNIT_STATUSES:
+        raise HTTPException(400, "Invalid status")
+    update = payload.model_dump()
+    if update["status"] == "completed":
+        existing = await db.syllabus_units.find_one({"id": uid}, {"_id": 0})
+        if not existing or existing.get("status") != "completed":
+            update["completed_at"] = now_utc().isoformat()
+    else:
+        update["completed_at"] = None
+    res = await db.syllabus_units.update_one({"id": uid}, {"$set": update})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Not found")
+    return await db.syllabus_units.find_one({"id": uid}, {"_id": 0})
+
+
+@api_router.post("/units/{uid}/status")
+async def change_unit_status(uid: str, payload: UnitStatusIn, user: dict = Depends(require_roles("admin", "principal", "faculty"))):
+    if payload.status not in UNIT_STATUSES:
+        raise HTTPException(400, "Invalid status")
+    update = {"status": payload.status, "completed_at": now_utc().isoformat() if payload.status == "completed" else None}
+    res = await db.syllabus_units.update_one({"id": uid}, {"$set": update})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Not found")
+    return await db.syllabus_units.find_one({"id": uid}, {"_id": 0})
+
+
+@api_router.delete("/units/{uid}")
+async def delete_unit(uid: str, user: dict = Depends(require_roles("admin", "principal"))):
+    res = await db.syllabus_units.delete_one({"id": uid})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Not found")
+    return {"ok": True}
+
+
 # ===================== Health =====================
 @api_router.get("/")
 async def root():
@@ -1000,3 +1167,4 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+

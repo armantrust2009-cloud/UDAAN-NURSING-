@@ -13,6 +13,7 @@ import FeesPage from "@/pages/FeesPage";
 import AttendancePage from "@/pages/AttendancePage";
 import LibraryPage from "@/pages/LibraryPage";
 import InquiriesPage from "@/pages/InquiriesPage";
+import SyllabusPage from "@/pages/SyllabusPage";
 import ProfilePage from "@/pages/ProfilePage";
 
 function ProtectedRoute({ children }) {
@@ -58,6 +59,7 @@ function App() {
               <Route path="attendance" element={<AttendancePage />} />
               <Route path="library" element={<LibraryPage />} />
               <Route path="inquiries" element={<InquiriesPage />} />
+              <Route path="syllabus" element={<SyllabusPage />} />
               <Route path="profile" element={<ProfilePage />} />
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
