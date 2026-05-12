@@ -208,6 +208,23 @@ class IssueIn(BaseModel):
     due_date: str  # YYYY-MM-DD
 
 
+class InquiryIn(BaseModel):
+    name: str
+    phone: str
+    email: Optional[str] = ""
+    course_interest: Optional[str] = ""
+    source: Optional[str] = "walk-in"  # walk-in | website | referral | social | call
+    notes: Optional[str] = ""
+    status: Optional[str] = "new"  # new | contacted | visited | admitted | lost
+    follow_up_date: Optional[str] = ""
+    assigned_to: Optional[str] = ""
+
+
+class InquiryStatusIn(BaseModel):
+    status: str
+    notes: Optional[str] = ""
+
+
 # ===================== Utilities =====================
 def new_id() -> str:
     return str(uuid.uuid4())
@@ -612,8 +629,17 @@ async def list_books(q: Optional[str] = None, user: dict = Depends(get_current_u
             {"category": {"$regex": q, "$options": "i"}},
         ]
     rows = await db.books.find(query, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    book_ids = [r["id"] for r in rows]
+    if book_ids:
+        issued_agg = await db.book_issues.aggregate([
+            {"$match": {"book_id": {"$in": book_ids}, "status": "issued"}},
+            {"$group": {"_id": "$book_id", "count": {"$sum": 1}}},
+        ]).to_list(len(book_ids))
+        issued_map = {a["_id"]: a["count"] for a in issued_agg}
+    else:
+        issued_map = {}
     for r in rows:
-        r["available_copies"] = await _book_available_count(r["id"], r.get("total_copies", 0))
+        r["available_copies"] = max(0, r.get("total_copies", 0) - issued_map.get(r["id"], 0))
     return rows
 
 
@@ -740,6 +766,146 @@ async def return_book(iid: str, user: dict = Depends(require_roles("admin", "pri
 @api_router.delete("/library/issues/{iid}")
 async def delete_issue(iid: str, user: dict = Depends(require_roles("admin"))):
     res = await db.book_issues.delete_one({"id": iid})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Not found")
+    return {"ok": True}
+
+
+# ===================== Inquiries (Admission Leads) =====================
+INQUIRY_STATUSES = {"new", "contacted", "visited", "admitted", "lost"}
+
+
+@api_router.get("/inquiries")
+async def list_inquiries(status_: Optional[str] = None, q: Optional[str] = None, user: dict = Depends(get_current_user)):
+    query = {}
+    if status_:
+        query["status"] = status_
+    if q:
+        query["$or"] = [
+            {"name": {"$regex": q, "$options": "i"}},
+            {"phone": {"$regex": q, "$options": "i"}},
+            {"email": {"$regex": q, "$options": "i"}},
+        ]
+    rows = await db.inquiries.find(query, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    return rows
+
+
+@api_router.get("/inquiries/stats")
+async def inquiry_stats(user: dict = Depends(get_current_user)):
+    pipeline = [{"$group": {"_id": "$status", "count": {"$sum": 1}}}]
+    rows = await db.inquiries.aggregate(pipeline).to_list(20)
+    out = {s: 0 for s in INQUIRY_STATUSES}
+    out["total"] = 0
+    for r in rows:
+        out[r["_id"]] = r["count"]
+        out["total"] += r["count"]
+    # conversion rate
+    out["conversion_rate"] = round((out["admitted"] / out["total"] * 100), 1) if out["total"] else 0
+    return out
+
+
+@api_router.post("/inquiries")
+async def create_inquiry(payload: InquiryIn, user: dict = Depends(require_roles("admin", "principal", "faculty"))):
+    if payload.status not in INQUIRY_STATUSES:
+        raise HTTPException(400, "Invalid status")
+    doc = payload.model_dump()
+    doc["id"] = new_id()
+    if doc.get("email"):
+        doc["email"] = doc["email"].lower()
+    doc["created_at"] = now_utc().isoformat()
+    doc["updated_at"] = now_utc().isoformat()
+    doc["history"] = [{"status": doc["status"], "at": doc["created_at"], "by": user.get("name", ""), "note": "Inquiry created"}]
+    await db.inquiries.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.put("/inquiries/{iid}")
+async def update_inquiry(iid: str, payload: InquiryIn, user: dict = Depends(require_roles("admin", "principal", "faculty"))):
+    if payload.status not in INQUIRY_STATUSES:
+        raise HTTPException(400, "Invalid status")
+    update = payload.model_dump()
+    if update.get("email"):
+        update["email"] = update["email"].lower()
+    update["updated_at"] = now_utc().isoformat()
+    res = await db.inquiries.update_one({"id": iid}, {"$set": update})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Not found")
+    return await db.inquiries.find_one({"id": iid}, {"_id": 0})
+
+
+@api_router.post("/inquiries/{iid}/status")
+async def change_inquiry_status(iid: str, payload: InquiryStatusIn, user: dict = Depends(require_roles("admin", "principal", "faculty"))):
+    if payload.status not in INQUIRY_STATUSES:
+        raise HTTPException(400, "Invalid status")
+    inq = await db.inquiries.find_one({"id": iid}, {"_id": 0})
+    if not inq:
+        raise HTTPException(404, "Not found")
+    entry = {"status": payload.status, "at": now_utc().isoformat(), "by": user.get("name", ""), "note": payload.notes or ""}
+    await db.inquiries.update_one(
+        {"id": iid},
+        {"$set": {"status": payload.status, "updated_at": now_utc().isoformat()},
+         "$push": {"history": entry}},
+    )
+    return await db.inquiries.find_one({"id": iid}, {"_id": 0})
+
+
+@api_router.post("/inquiries/{iid}/convert")
+async def convert_inquiry(iid: str, user: dict = Depends(require_roles("admin", "principal"))):
+    inq = await db.inquiries.find_one({"id": iid}, {"_id": 0})
+    if not inq:
+        raise HTTPException(404, "Inquiry not found")
+    if inq.get("converted_student_id"):
+        raise HTTPException(400, "Already converted")
+
+    email = (inq.get("email") or "").lower()
+    if not email:
+        raise HTTPException(400, "Cannot convert — inquiry has no email. Edit inquiry to add an email first.")
+    if await db.students.find_one({"email": email}):
+        raise HTTPException(400, "A student with this email already exists")
+
+    course_id = ""
+    if inq.get("course_interest"):
+        c = await db.courses.find_one({"$or": [{"id": inq["course_interest"]}, {"name": {"$regex": inq["course_interest"], "$options": "i"}}, {"code": inq["course_interest"]}]}, {"_id": 0, "id": 1})
+        if c:
+            course_id = c["id"]
+
+    count = await db.students.count_documents({})
+    student_doc = {
+        "id": new_id(),
+        "name": inq["name"],
+        "email": email,
+        "phone": inq.get("phone", ""),
+        "dob": "",
+        "gender": "",
+        "address": "",
+        "parent_name": "",
+        "parent_phone": "",
+        "course_id": course_id,
+        "batch_year": datetime.now().year,
+        "admission_no": f"NUR{datetime.now().year}{count + 1:04d}",
+        "scholarship": 0.0,
+        "status": "active",
+        "photo": "",
+        "blood_group": "",
+        "valid_until": "",
+        "created_at": now_utc().isoformat(),
+    }
+    await db.students.insert_one(student_doc)
+
+    entry = {"status": "admitted", "at": now_utc().isoformat(), "by": user.get("name", ""), "note": f"Converted to student {student_doc['admission_no']}"}
+    await db.inquiries.update_one(
+        {"id": iid},
+        {"$set": {"status": "admitted", "converted_student_id": student_doc["id"], "updated_at": now_utc().isoformat()},
+         "$push": {"history": entry}},
+    )
+    student_doc.pop("_id", None)
+    return {"inquiry_id": iid, "student": student_doc}
+
+
+@api_router.delete("/inquiries/{iid}")
+async def delete_inquiry(iid: str, user: dict = Depends(require_roles("admin"))):
+    res = await db.inquiries.delete_one({"id": iid})
     if res.deleted_count == 0:
         raise HTTPException(404, "Not found")
     return {"ok": True}
