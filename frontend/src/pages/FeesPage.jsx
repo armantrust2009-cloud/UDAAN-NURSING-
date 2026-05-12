@@ -8,12 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Wallet, CheckCircle2 } from "lucide-react";
+import { Plus, Wallet, CheckCircle2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function FeesPage() {
   const { user } = useAuth();
   const canEdit = ["admin", "principal"].includes(user.role);
+  const canDelete = user.role === "admin";
 
   const [rows, setRows] = useState([]);
   const [students, setStudents] = useState([]);
@@ -47,6 +48,15 @@ export default function FeesPage() {
     try {
       await api.post(`/fees/${id}/pay`, { method: "cash", note: "Marked paid by admin" });
       toast.success("Payment recorded");
+      load();
+    } catch (e) { toast.error(formatApiError(e.response?.data?.detail)); }
+  };
+
+  const remove = async (id) => {
+    if (!window.confirm("Delete this fee entry permanently?")) return;
+    try {
+      await api.delete(`/fees/${id}`);
+      toast.success("Fee entry deleted");
       load();
     } catch (e) { toast.error(formatApiError(e.response?.data?.detail)); }
   };
@@ -168,8 +178,13 @@ export default function FeesPage() {
                   {canEdit && (
                     <TableCell className="text-right">
                       {r.status === "pending" && (
-                        <Button size="sm" variant="outline" onClick={() => pay(r.id)} className="text-emerald-700 border-emerald-200 hover:bg-emerald-50" data-testid={`fee-pay-${r.id}`}>
+                        <Button size="sm" variant="outline" onClick={() => pay(r.id)} className="text-emerald-700 border-emerald-200 hover:bg-emerald-50 mr-1" data-testid={`fee-pay-${r.id}`}>
                           <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Mark Paid
+                        </Button>
+                      )}
+                      {canDelete && (
+                        <Button size="sm" variant="ghost" onClick={() => remove(r.id)} className="text-rose-600 hover:text-rose-700 hover:bg-rose-50" title="Delete entry" data-testid={`fee-delete-${r.id}`}>
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       )}
                     </TableCell>
