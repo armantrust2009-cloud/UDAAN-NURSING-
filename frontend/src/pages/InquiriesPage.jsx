@@ -28,7 +28,7 @@ const SOURCES = ["walk-in", "website", "referral", "social", "call"];
 const empty = {
   name: "", phone: "", email: "", course_interest: "",
   source: "walk-in", notes: "", status: "new",
-  follow_up_date: "", assigned_to: "",
+  follow_up_date: "", assigned_to: "", address: "",
 };
 
 const statusBadge = (s) => {
@@ -152,6 +152,10 @@ export default function InquiriesPage() {
                 </div>
                 <div><Label>Follow-up Date</Label><Input type="date" value={form.follow_up_date} onChange={(e) => setForm({ ...form, follow_up_date: e.target.value })} /></div>
                 <div><Label>Assigned To</Label><Input value={form.assigned_to} onChange={(e) => setForm({ ...form, assigned_to: e.target.value })} placeholder="Staff name" /></div>
+                <div className="md:col-span-2">
+                  <Label>Address</Label>
+                  <Textarea rows={2} data-testid="inquiry-address-input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="City, area, landmark..." />
+                </div>
                 <div className="md:col-span-2">
                   <Label>Notes</Label>
                   <Textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Conversation summary, requirements..." />

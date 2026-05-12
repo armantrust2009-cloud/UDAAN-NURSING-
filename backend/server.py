@@ -218,6 +218,7 @@ class InquiryIn(BaseModel):
     status: Optional[str] = "new"  # new | contacted | visited | admitted | lost
     follow_up_date: Optional[str] = ""
     assigned_to: Optional[str] = ""
+    address: Optional[str] = ""
 
 
 class InquiryStatusIn(BaseModel):
@@ -878,7 +879,7 @@ async def convert_inquiry(iid: str, user: dict = Depends(require_roles("admin", 
         "phone": inq.get("phone", ""),
         "dob": "",
         "gender": "",
-        "address": "",
+        "address": inq.get("address", ""),
         "parent_name": "",
         "parent_phone": "",
         "course_id": course_id,
