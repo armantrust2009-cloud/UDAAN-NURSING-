@@ -142,8 +142,9 @@ function SubjectDetail({ subject, canEdit, onClose, faculty, onSubjectChange }) 
   const save = async (e) => {
     e.preventDefault();
     try {
-      if (editing) await api.put(`/units/${editing.id}`, { ...form, subject_id: subject.id });
-      else await api.post(`/subjects/${subject.id}/units`, form);
+      const payload = { ...form, subject_id: subject.id };
+      if (editing) await api.put(`/units/${editing.id}`, payload);
+      else await api.post(`/subjects/${subject.id}/units`, payload);
       toast.success(editing ? "Unit updated" : "Unit added");
       setOpen(false); load(); onSubjectChange?.();
     } catch (e) { toast.error(formatApiError(e.response?.data?.detail)); }
