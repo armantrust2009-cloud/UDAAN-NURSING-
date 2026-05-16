@@ -2,7 +2,11 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
-  "dependencies": {
+  "dependencies":"dependencies": {
+  "date-fns": "^2.30.0",
+  "react": "^18.0.0",
+  "react-dom": "^18.0.0",
+  "react-scripts": "5.0.1"} {
     "@hookform/resolvers": "^5.0.1",
     "@radix-ui/react-accordion": "^1.2.8",
     "@radix-ui/react-alert-dialog": "^1.1.11",
